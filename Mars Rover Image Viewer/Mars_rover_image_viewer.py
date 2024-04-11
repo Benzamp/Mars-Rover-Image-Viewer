@@ -105,7 +105,7 @@ class MarsRoverImageViewer:
         self.api_key_entry = tk.Entry(self.settings_frame, bg='#333', fg='white')  # Set entry colors
         self.api_key_entry.pack(side='left')
         self.api_key = self.load_api_key()  # Load API key from file
-        print("Loaded API key:", self.api_key)  # Check if API key is loaded
+        #print("Loaded API key:", self.api_key)  # Check if API key is loaded
         self.api_key_entry.insert(0, self.api_key)  # Auto-populate API key entry
 
         self.save_api_key_button = tk.Button(self.settings_frame, text='Save API Key', command=self.save_api_key, bg='#333', fg='white')  # Set button colors
@@ -276,7 +276,7 @@ class MarsRoverImageViewer:
                 for line in f:
                     line = line.strip()
                     if not line.startswith('//'):  # Ignore comment lines
-                        print("Loaded API key:", line)  # Add this line to print the loaded API key
+                        #print("Loaded API key:", line)  # Add this line to print the loaded API key
                         return line
             print("No valid API key found")  # Add this line to indicate no valid API key found
             return ''

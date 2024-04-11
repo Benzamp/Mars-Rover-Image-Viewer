@@ -88,7 +88,7 @@ class MarsRoverImageViewer:
         self.date_frame = tk.Frame(self.tab1, bg=self.dark_gray)
         self.date_frame.pack(pady=5)
 
-        self.date_label = tk.Label(self.date_frame, text='Select Date (sol):', bg=self.dark_gray, fg='white')  # Set label colors
+        self.date_label = tk.Label(self.date_frame, text='Select Martian Date (sol):', bg=self.dark_gray, fg='white')  # Set label colors
         self.date_label.pack(side='left')
 
         self.selected_date = tk.StringVar()

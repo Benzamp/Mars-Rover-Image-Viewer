@@ -1,3 +1,11 @@
+"""
+Project: Mars Rover Image Viewer
+Author: Ben Harrison
+Date: April 11, 2024
+Description: GUI for viewing and downloading NASA Mars Rover Images.
+License: MIT License
+"""
+
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, messagebox
 from PIL import ImageTk, Image

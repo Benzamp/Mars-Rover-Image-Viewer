@@ -304,12 +304,12 @@ class MarsRoverImageViewer:
 
     def load_readme(self):
         try:
-            with open('README.md', 'r') as f:
+            with open('about.md', 'r') as f:
                 readme_content = f.read()
                 self.about_text.insert(tk.END, readme_content)
                 self.about_text.configure(state='disabled')  # Disable editing of the text widget
         except FileNotFoundError:
-            self.about_text.insert(tk.END, 'README.md not found.')
+            self.about_text.insert(tk.END, 'about.md not found.')
 
     def display_current_image_placeholder(self):
         # Create a placeholder image

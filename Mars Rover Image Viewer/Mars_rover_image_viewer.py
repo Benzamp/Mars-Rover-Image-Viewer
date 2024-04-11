@@ -265,13 +265,35 @@ class MarsRoverImageViewer:
     def load_api_key(self):
         try:
             with open('api_key.txt', 'r') as f:
-                return f.read().strip()
+                lines = f.readlines()
+                if len(lines) >= 3:
+                    api_key_line = lines[2].strip()
+                    if '=' in api_key_line:
+                        return api_key_line.split('=')[1]
+                    else:
+                        return ''
+                else:
+                    return ''
         except FileNotFoundError:
             return ''
 
     def save_api_key_to_file(self):
+        api_key = self.api_key_entry.get()
+        try:
+            with open('api_key.txt', 'r') as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            lines = []
+
+        if len(lines) >= 3:
+            lines[2] = f'{api_key}\n'
+        else:
+            lines.append('\n' * (2 - len(lines)))  # Make sure there are at least 3 lines
+            lines.append(f'apikey={api_key}\n')
+
         with open('api_key.txt', 'w') as f:
-            f.write(self.api_key)
+            f.writelines(lines)
+
 
     def load_readme(self):
         try:

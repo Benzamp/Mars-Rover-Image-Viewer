@@ -312,14 +312,14 @@ class MarsRoverImageViewer:
                 self.about_text.configure(state='disabled')  # Disable editing of the text widget
 
                 # Apply a tag to URLs in the text widget
-                self.apply_url_tags()
+                #self.apply_link_style() cant really get this to work right yet, gonna move on
 
         except FileNotFoundError:
             self.about_text.insert(tk.END, 'about.md not found.')
 
-    def apply_url_tags(self):
+    def apply_link_style(self):
         # Regular expression to match URLs
-        url_pattern = r'https?://\S+'
+        url_pattern = r'(http|ftp|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:\/~+#-]*[\w@?^=%&\/~+#-])'
 
         # Find all URLs in the text widget content
         for match in re.finditer(url_pattern, self.about_text.get('1.0', 'end')):
@@ -330,15 +330,7 @@ class MarsRoverImageViewer:
         self.about_text.tag_configure('url', foreground='blue', underline=True)
 
         # Bind callback function to handle click event on URLs
-        self.about_text.tag_bind('url', '<Button-1>', self.open_url)
-
-    def open_url(self, event):
-        # Get the clicked URL from the event
-        index = self.about_text.index(tk.CURRENT)
-        url = self.about_text.get(index + ' wordstart', index + ' wordend')
-
-        # Open the URL in a web browser
-        webbrowser.open(url)
+        #self.about_text.tag_bind('url', '<Button-1>', self.open_url)
 
     def display_current_image_placeholder(self):
         # Create a placeholder image
@@ -374,7 +366,6 @@ class MarsRoverImageViewer:
             self.display_current_image()
         else:
             self.display_message('No recent photos available for the selected rover')
-
 
 def main():
     window = tk.Tk()

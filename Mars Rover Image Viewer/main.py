@@ -14,7 +14,7 @@ from io import BytesIO
 import os
 import tkinter.font as tkFont
 import re
-import webbrowser
+from datetime import datetime
 
 class MarsRoverImageViewer:
     def __init__(self, master):
@@ -212,48 +212,6 @@ class MarsRoverImageViewer:
 
         self.sol = None
 
-        # Check if API key is set and verified
-        if self.check_api_key():
-            initial_message = "Choose a rover and search for images by entering a specific sol date, or simply fetch the most recent images and explore from there."
-        else:
-            initial_message = "You need to add an API key. If you need one, go to the About tab for instructions. If you have one, add it in the Settings tab."
-
-        self.display_message(initial_message)
-
-    def fetch_recent_images(self):
-        rover_name = self.selected_rover.get()
-        sol = 'latest_photos'
-        rovers = [rover_name.lower()]
-        
-        # Display message in console
-        self.display_message(f"Getting most recent images from {rover_name}...")  
-
-        self.photos = []
-
-        for rover in rovers:
-            url = f'https://api.nasa.gov/mars-photos/api/v1/rovers/{rover}/latest_photos?api_key={self.api_key}'
-
-            try:
-                response = requests.get(url)
-                if response.status_code == 200:
-                    data = response.json()
-                    self.photos.extend(data['latest_photos'])
-                    # Extract the sol date from the fetched data
-                    if data['latest_photos']:
-                        sol_date = data['latest_photos'][0]['sol']
-                        # Update the selected date field
-                        self.selected_date.set(str(sol_date))
-                else:
-                    self.display_message(f'Failed to fetch recent photos for {rover}: {response.status_code}')
-            except Exception as e:
-                self.display_message('An error occurred:', str(e))
-
-        if self.photos:
-            self.current_index = 0
-            self.display_current_image()
-        else:
-            self.display_message('No recent photos available for the selected rover')
-
     def display_current_image(self):
         # Show a placeholder image initially
         placeholder_image = Image.new("RGB", (400, 400), color=self.dark_gray)
@@ -336,9 +294,6 @@ class MarsRoverImageViewer:
             return False
 
     def display_message(self, message):
-        # Clear the console
-        self.console.delete('1.0', tk.END)
-
         # Insert the new message
         self.console.insert(tk.END, f'{message}\n')
         self.console.see(tk.END)
@@ -398,6 +353,65 @@ class MarsRoverImageViewer:
         with open('api_key.txt', 'w') as f:
             f.writelines(lines)
 
+    def save_image_info_to_file(self, rover_name, sol_date, image_number):
+        info_line = f'{rover_name},{sol_date},{image_number}'
+
+        # Add date and time when the info was saved
+        current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        info_line += f',{current_datetime}\n'
+
+        try:
+            with open('api_key.txt', 'r') as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            lines = []
+
+        if len(lines) >= 5:
+            lines[4] = info_line  # Save the info directly without any prefix
+        else:
+            lines.append('\n' * (4 - len(lines)))  # Make sure there are at least 5 lines
+            lines.append(info_line)
+
+        with open('api_key.txt', 'w') as f:
+            f.writelines(lines)
+
+    from datetime import datetime
+
+    def load_saved_image_info(self):
+        try:
+            with open('api_key.txt', 'r+') as f:  # Open the file in read/write mode
+                lines = f.readlines()
+                if len(lines) >= 5:
+                    image_info = lines[4].strip().split(',')
+                    if len(image_info) == 4:  # Check if there are four elements in the line
+                        rover_name, sol_year, image_number, saved_datetime = image_info
+                        self.selected_rover.set(rover_name)
+                        self.selected_date.set(sol_year)
+                        self.current_index = int(image_number) - 1
+
+                        # Clear the console
+                        self.console.delete('1.0', tk.END)
+                        
+                        self.fetch_and_display_images()
+                        
+                        # Format the saved datetime
+                        saved_datetime = datetime.strptime(saved_datetime, "%Y-%m-%d %H:%M:%S")
+                        formatted_datetime = saved_datetime.strftime("%A, %B %dth at %H:%M")
+                        
+                        # Display the message in the Viewer's scrollable text
+                        self.display_message(f"Putting you back where you were on {formatted_datetime}")
+
+                        # Delete the 5th line in the file
+                        del lines[4]
+                        f.seek(0)  # Move the file pointer to the beginning
+                        f.writelines(lines)  # Write the modified lines back to the file
+                        f.truncate()  # Truncate the remaining content (if any)
+        except FileNotFoundError:
+            print("File not found")  # Handle file not found error
+        except Exception as e:
+            print("An error occurred while loading saved image info:", str(e))  # Handle other exceptions
+
+
 
     def load_readme(self):
         try:
@@ -427,14 +441,40 @@ class MarsRoverImageViewer:
         # Bind callback function to handle click event on URLs
         #self.about_text.tag_bind('url', '<Button-1>', self.open_url)
 
+    def saved_image_data_exists(self):
+        try:
+            with open('api_key.txt', 'r') as f:
+                lines = f.readlines()
+                if len(lines) >= 5:
+                    return True
+                else:
+                    return False
+        except FileNotFoundError:
+            return False
+
     def display_current_image_placeholder(self):
-        # Create a placeholder image
-        placeholder_image = Image.new("RGB", (400, 400), color=self.dark_gray)
-        placeholder_image = ImageTk.PhotoImage(placeholder_image)
-        self.image_label.config(image=placeholder_image)
-        self.image_label.image = placeholder_image
+        if self.saved_image_data_exists():
+            # Load saved image info
+            self.load_saved_image_info()
+        else:
+            # Create a placeholder image
+            placeholder_image = Image.new("RGB", (400, 400), color=self.dark_gray)
+            placeholder_image = ImageTk.PhotoImage(placeholder_image)
+            self.image_label.config(image=placeholder_image)
+            self.image_label.image = placeholder_image
+            # Check if API key is set and verified
+            if self.check_api_key():
+                initial_message = "Choose a rover and search for images by entering a specific sol date, or simply fetch the most recent images and explore from there."
+            else:
+                initial_message = "You need to add an API key. If you need one, go to the About tab for instructions. If you have one, add it in the Settings tab."
+
+            self.display_message(initial_message)
+
 
     def fetch_and_display_images(self):
+        # Clear the console
+        self.console.delete('1.0', tk.END)
+
         rover_name = self.selected_rover.get()
         sol = self.selected_date.get()
         if not sol.isdigit():
@@ -457,38 +497,45 @@ class MarsRoverImageViewer:
                         self.photos.extend(fetched_photos)
                         self.display_message(f"{len(fetched_photos)} images were found for the rover {rover_name} in sol year {sol}")
                     else:
-                        self.display_message(f'No photos found for {rover_name} in sol year {sol}')
+                        # Clear the console
+                        self.console.delete('1.0', tk.END)
                         # Update image counter label when no photos are available
                         self.image_counter_label.config(text='0/0')
                         # Revert to placeholder image and nullify image facts
                         self.display_current_image_placeholder()
-                        self.details_label.config(text='')
+                        # Set the message in the Viewer's scrollable text
+                        self.display_message(f'No images found for {rover_name} on sol {sol}')
                         return  # Exit the method since there are no photos
                 else:
-                    self.display_message(f'Failed to fetch photos for {rover}: {response.status_code}')
+                    # Clear the console
+                    self.console.delete('1.0', tk.END)
+
                     # Update image counter label when fetching photos fails
                     self.image_counter_label.config(text='0/0')
                     # Revert to placeholder image and nullify image facts
                     self.display_current_image_placeholder()
-                    self.details_label.config(text='')
+                    # Set the message in the Viewer's scrollable text
+                    self.display_message(f'Failed to fetch images for {rover_name} on sol {sol}')
                     return  # Exit the method since there are no photos
             except Exception as e:
-                self.display_message('An error occurred:', str(e))
+                # Clear the console
+                self.console.delete('1.0', tk.END)
                 # Update image counter label when an error occurs
                 self.image_counter_label.config(text='0/0')
                 # Revert to placeholder image and nullify image facts
                 self.display_current_image_placeholder()
-                self.details_label.config(text='')
+                # Set the message in the Viewer's scrollable text
+                self.display_message(f'Error fetching images for {rover_name} on sol {sol}')
                 return  # Exit the method since there are no photos
 
         if self.photos:
             self.current_index = 0
             self.display_current_image()
 
-
-
-
     def fetch_recent_images(self):
+        # Clear the console
+        self.console.delete('1.0', tk.END)
+
         rover_name = self.selected_rover.get()
         rovers = [rover_name.lower()]
         
@@ -528,7 +575,10 @@ class MarsRoverImageViewer:
         if current_sol.isdigit() and int(current_sol) > 0:
             new_sol = int(current_sol) - 1
             self.selected_date.set(str(new_sol))
-            self.sol = str(new_sol)  
+            self.sol = str(new_sol)
+            # Clear the console
+            self.console.delete('1.0', tk.END)
+
             self.display_message(f"Fetching images for sol year {new_sol}...")  # Display message in console
             self.fetch_and_display_images()
 
@@ -537,7 +587,11 @@ class MarsRoverImageViewer:
         if current_sol.isdigit():
             new_sol = int(current_sol) + 1
             self.selected_date.set(str(new_sol))
-            self.sol = str(new_sol)  
+            self.sol = str(new_sol)
+
+            # Clear the console
+            self.console.delete('1.0', tk.END)
+
             self.display_message(f"Fetching images for sol year {new_sol}...")  # Display message in console
             self.fetch_and_display_images()
 
@@ -611,7 +665,17 @@ def main():
     window = tk.Tk()
     window.iconphoto(True, tk.PhotoImage(file='Images/rover-icon2.png'))
     app = MarsRoverImageViewer(window)
+
+    def on_closing():
+        if messagebox.askokcancel("Quit", "Would you like to save your place so you can browse later?"):
+            # Run the save_image_info_to_file function
+            app.save_image_info_to_file(app.selected_rover.get(), app.selected_date.get(), app.current_index + 1)
+            messagebox.showinfo("Success", "Your place has been saved successfully.")
+        window.destroy()
+    
+    window.protocol("WM_DELETE_WINDOW", on_closing)
     window.mainloop()
+
 
 if __name__ == "__main__":
     main()

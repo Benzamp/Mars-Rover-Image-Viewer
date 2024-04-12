@@ -1,0 +1,10 @@
+{
+    "apiKey": "",
+    "downloadPath": "",
+    "saveLocation": {
+        "rover_name": "",
+        "sol_date": "",
+        "image_number": ,
+        "saved_datetime": ""
+    }
+}

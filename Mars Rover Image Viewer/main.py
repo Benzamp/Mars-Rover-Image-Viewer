@@ -293,8 +293,13 @@ class MarsRoverImageViewer:
             return False
 
     def display_message(self, message):
+        # Clear the console
+        self.console.delete('1.0', tk.END)
+
+        # Insert the new message
         self.console.insert(tk.END, f'{message}\n')
         self.console.see(tk.END)
+
 
     def load_api_key(self):
         try:
@@ -381,18 +386,28 @@ class MarsRoverImageViewer:
                 response = requests.get(url)
                 if response.status_code == 200:
                     data = response.json()
-                    self.photos.extend(data['photos'])
-                    self.display_message(f"{len(data['photos'])} images were found for the rover {rover_name} in sol year {sol}")
+                    fetched_photos = data.get('photos', [])
+                    if fetched_photos:
+                        self.photos.extend(fetched_photos)
+                        self.display_message(f"{len(fetched_photos)} images were found for the rover {rover_name} in sol year {sol}")
+                    else:
+                        self.display_message(f'No photos found for {rover_name} in sol year {sol}')
+                        # Update image counter label when no photos are available
+                        self.image_counter_label.config(text='0/0')
                 else:
                     self.display_message(f'Failed to fetch photos for {rover}: {response.status_code}')
+                    # Update image counter label when fetching photos fails
+                    self.image_counter_label.config(text='0/0')
             except Exception as e:
                 self.display_message('An error occurred:', str(e))
+                # Update image counter label when an error occurs
+                self.image_counter_label.config(text='0/0')
 
         if self.photos:
             self.current_index = 0
             self.display_current_image()
-        else:
-            self.display_message('No photos available for the selected rover')
+
+
 
     def fetch_recent_images(self):
         rover_name = self.selected_rover.get()

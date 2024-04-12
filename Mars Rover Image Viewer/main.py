@@ -70,8 +70,21 @@ class MarsRoverImageViewer:
         self.prev_button = tk.Button(self.button_frame_bottom, text='◀ Previous', command=self.show_previous_image, width=10, bg='#333', fg='white')  # Set button colors
         self.prev_button.pack(side='left', padx=(10, 5))
 
+        self.image_counter_label = tk.Label(self.button_frame_bottom, text='', bg=self.dark_gray, fg='white')
+        self.image_counter_label.pack(side='left', padx=(5, 10))
+
         self.next_button = tk.Button(self.button_frame_bottom, text='Next ▶', command=self.show_next_image, width=10, bg='#333', fg='white')  # Set button colors
         self.next_button.pack(side='right', padx=(5, 10))
+
+        self.date_frame = tk.Frame(self.tab1, bg=self.dark_gray)
+        self.date_frame.pack(pady=5)
+
+        # Add buttons for advancing and retracting the sol
+        self.retract_sol_button = tk.Button(self.date_frame, text='◀ -1 sol', command=self.decrease_sol, width=10, bg='#333', fg='white')
+        self.retract_sol_button.pack(side='left', padx=(10, 5))
+
+        self.advance_sol_button = tk.Button(self.date_frame, text='+1 sol ▶', command=self.increase_sol, width=10, bg='#333', fg='white')
+        self.advance_sol_button.pack(side='right', padx=(5, 10))
 
         self.rover_frame = tk.Frame(self.tab1, bg=self.dark_gray)
         self.rover_frame.pack(pady=5)
@@ -149,6 +162,7 @@ class MarsRoverImageViewer:
         self.download_button.config(font=self.custom_font)
         self.prev_button.config(font=self.custom_font)
         self.next_button.config(font=self.custom_font)
+        self.image_counter_label.config(font=self.custom_font)
 
         # Set the background color of button frames
         self.button_frame_top.config(bg=self.dark_gray)
@@ -168,28 +182,34 @@ class MarsRoverImageViewer:
         # Apply button style to fetch recent
         self.fetch_recent_button.config(font=self.custom_font, bg='#333', fg='white')
 
+        self.sol = None
 
-    def fetch_and_display_images(self):
+
+    def fetch_recent_images(self):
         rover_name = self.selected_rover.get()
-        sol = self.selected_date.get()
-        if not sol.isdigit():
-            self.display_message('Please enter a valid sol number.')
-            return
-
+        sol = 'latest_photos'
         rovers = [rover_name.lower()]
+        
+        # Display message in console
+        self.display_message(f"Getting most recent images from {rover_name}...")  
 
         self.photos = []
 
         for rover in rovers:
-            url = f'https://api.nasa.gov/mars-photos/api/v1/rovers/{rover}/photos?sol={sol}&api_key={self.api_key}'
+            url = f'https://api.nasa.gov/mars-photos/api/v1/rovers/{rover}/latest_photos?api_key={self.api_key}'
 
             try:
                 response = requests.get(url)
                 if response.status_code == 200:
                     data = response.json()
-                    self.photos.extend(data['photos'])
+                    self.photos.extend(data['latest_photos'])
+                    # Extract the sol date from the fetched data
+                    if data['latest_photos']:
+                        sol_date = data['latest_photos'][0]['sol']
+                        # Update the selected date field
+                        self.selected_date.set(str(sol_date))
                 else:
-                    self.display_message(f'Failed to fetch photos for {rover}: {response.status_code}')
+                    self.display_message(f'Failed to fetch recent photos for {rover}: {response.status_code}')
             except Exception as e:
                 self.display_message('An error occurred:', str(e))
 
@@ -197,7 +217,7 @@ class MarsRoverImageViewer:
             self.current_index = 0
             self.display_current_image()
         else:
-            self.display_message('No photos available for the selected rover')
+            self.display_message('No recent photos available for the selected rover')
 
     def display_current_image(self):
         # Show a placeholder image initially
@@ -220,9 +240,13 @@ class MarsRoverImageViewer:
 
             rover_name = photo['rover']['name']
             earth_date = photo['earth_date']
+            sol = photo['sol']  # Martian date (sol)
             status = photo['rover']['status']
-            self.details_label.config(text=f'Rover: {rover_name}\nEarth Date: {earth_date}\nStatus: {status}')
+            self.details_label.config(text=f'Rover: {rover_name}\nEarth Date: {earth_date}\nMartian Date (sol): {sol}\nStatus: {status}')
             self.current_image_data = img_data  # Save image data for download
+
+            # Update image counter
+            self.image_counter_label.config(text=f'{self.current_index + 1}/{len(self.photos)}')
         else:
             self.display_message('Failed to fetch image:', img_response.status_code)
 
@@ -339,12 +363,42 @@ class MarsRoverImageViewer:
         self.image_label.config(image=placeholder_image)
         self.image_label.image = placeholder_image
 
+    def fetch_and_display_images(self):
+        rover_name = self.selected_rover.get()
+        sol = self.selected_date.get()
+        if not sol.isdigit():
+            self.display_message('Please enter a valid sol number.')
+            return
+
+        rovers = [rover_name.lower()]
+
+        self.photos = []
+
+        for rover in rovers:
+            url = f'https://api.nasa.gov/mars-photos/api/v1/rovers/{rover}/photos?sol={sol}&api_key={self.api_key}'
+
+            try:
+                response = requests.get(url)
+                if response.status_code == 200:
+                    data = response.json()
+                    self.photos.extend(data['photos'])
+                    self.display_message(f"{len(data['photos'])} images were found for the rover {rover_name} in sol year {sol}")
+                else:
+                    self.display_message(f'Failed to fetch photos for {rover}: {response.status_code}')
+            except Exception as e:
+                self.display_message('An error occurred:', str(e))
+
+        if self.photos:
+            self.current_index = 0
+            self.display_current_image()
+        else:
+            self.display_message('No photos available for the selected rover')
+
     def fetch_recent_images(self):
         rover_name = self.selected_rover.get()
-        sol = 'latest_photos'
         rovers = [rover_name.lower()]
         
-        self.display_message(f"Getting most recent images from {rover_name}...")  # Display message in console
+        self.display_message(f"Getting most recent images from {rover_name}...")  
 
         self.photos = []
 
@@ -355,7 +409,15 @@ class MarsRoverImageViewer:
                 response = requests.get(url)
                 if response.status_code == 200:
                     data = response.json()
-                    self.photos.extend(data['latest_photos'])
+                    latest_photos = data.get('latest_photos', [])
+                    if latest_photos:
+                        self.photos.extend(latest_photos)
+                        sol_date = latest_photos[0]['sol']
+                        self.selected_date.set(str(sol_date))
+                        self.sol = str(sol_date)  
+                        self.display_message(f"{len(latest_photos)} images were found for the rover {rover_name} in sol year {sol_date}")
+                    else:
+                        self.display_message(f'No recent photos available for {rover}')
                 else:
                     self.display_message(f'Failed to fetch recent photos for {rover}: {response.status_code}')
             except Exception as e:
@@ -366,6 +428,26 @@ class MarsRoverImageViewer:
             self.display_current_image()
         else:
             self.display_message('No recent photos available for the selected rover')
+
+    def decrease_sol(self):
+        current_sol = self.selected_date.get()
+        if current_sol.isdigit() and int(current_sol) > 0:
+            new_sol = int(current_sol) - 1
+            self.selected_date.set(str(new_sol))
+            self.sol = str(new_sol)  
+            self.display_message(f"Fetching images for sol year {new_sol}...")  # Display message in console
+            self.fetch_and_display_images()
+
+    def increase_sol(self):
+        current_sol = self.selected_date.get()
+        if current_sol.isdigit():
+            new_sol = int(current_sol) + 1
+            self.selected_date.set(str(new_sol))
+            self.sol = str(new_sol)  
+            self.display_message(f"Fetching images for sol year {new_sol}...")  # Display message in console
+            self.fetch_and_display_images()
+
+
 
 def main():
     window = tk.Tk()

@@ -61,9 +61,6 @@ class MarsRoverImageViewer:
         self.download_button = tk.Button(self.button_frame_top, text='Download Image', command=self.download_image, width=20, bg='#333', fg='white')  # Set button colors
         self.download_button.pack(side='left', padx=(10, 5))
 
-        self.fetch_button = tk.Button(self.button_frame_top, text='Fetch Images', command=self.fetch_and_display_images, width=20, bg='#333', fg='white')  # Set button colors
-        self.fetch_button.pack(side='left', padx=(5, 10))
-
         self.button_frame_bottom = tk.Frame(self.tab1, bg=self.dark_gray)
         self.button_frame_bottom.pack(pady=10)
 
@@ -107,6 +104,9 @@ class MarsRoverImageViewer:
         self.selected_date = tk.StringVar()
         self.date_entry = tk.Entry(self.date_frame, textvariable=self.selected_date, bg='#333', fg='white')  # Set entry colors
         self.date_entry.pack(side='left')
+
+        self.fetch_button = tk.Button(self.date_frame, text='Search', command=self.fetch_and_display_images, width=7, bg='#333', fg='white')  # Set button colors
+        self.fetch_button.pack(side='left', padx=(5, 10))
 
         self.console = scrolledtext.ScrolledText(self.tab1, wrap=tk.WORD, width=60, height=10, bg='#333', fg='white')  # Set console colors
         self.console.pack(pady=10, padx=10, fill='both', expand=True)
@@ -184,6 +184,9 @@ class MarsRoverImageViewer:
 
         self.sol = None
 
+        # Display initial message
+        initial_message = "Choose a rover and search for images by entering a specific sol date, or simply fetch the most recent images and explore from there."
+        self.display_message(initial_message)
 
     def fetch_recent_images(self):
         rover_name = self.selected_rover.get()
@@ -396,18 +399,31 @@ class MarsRoverImageViewer:
                         self.display_message(f'No photos found for {rover_name} in sol year {sol}')
                         # Update image counter label when no photos are available
                         self.image_counter_label.config(text='0/0')
+                        # Revert to placeholder image and nullify image facts
+                        self.display_current_image_placeholder()
+                        self.details_label.config(text='')
+                        return  # Exit the method since there are no photos
                 else:
                     self.display_message(f'Failed to fetch photos for {rover}: {response.status_code}')
                     # Update image counter label when fetching photos fails
                     self.image_counter_label.config(text='0/0')
+                    # Revert to placeholder image and nullify image facts
+                    self.display_current_image_placeholder()
+                    self.details_label.config(text='')
+                    return  # Exit the method since there are no photos
             except Exception as e:
                 self.display_message('An error occurred:', str(e))
                 # Update image counter label when an error occurs
                 self.image_counter_label.config(text='0/0')
+                # Revert to placeholder image and nullify image facts
+                self.display_current_image_placeholder()
+                self.details_label.config(text='')
+                return  # Exit the method since there are no photos
 
         if self.photos:
             self.current_index = 0
             self.display_current_image()
+
 
 
 

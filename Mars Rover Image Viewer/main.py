@@ -265,16 +265,18 @@ class MarsRoverImageViewer:
         if hasattr(self, 'current_image_data'):
             rover_name = self.photos[self.current_index]['rover']['name']
             earth_date = self.photos[self.current_index]['earth_date']
-            file_name = f"{rover_name}_{earth_date}.jpg"
+            image_number = self.current_index + 1  # Adding 1 to index since image numbers start from 1
+            file_name = f"{rover_name}_{earth_date}_Image{image_number}.jpg"
             file_path = filedialog.asksaveasfilename(defaultextension=".jpg",
-                                                      filetypes=[("JPEG files", "*.jpg"), ("All files", "*.*")],
-                                                      initialfile=file_name)
+                                                    filetypes=[("JPEG files", "*.jpg"), ("All files", "*.*")],
+                                                    initialfile=file_name)
             if file_path:
                 with open(file_path, 'wb') as f:
                     f.write(self.current_image_data)
                 self.display_message("Image downloaded successfully.")
         else:
             self.display_message("No image to download.")
+
 
     def save_api_key(self):
         self.api_key = self.api_key_entry.get()
@@ -461,6 +463,47 @@ class MarsRoverImageViewer:
             self.sol = str(new_sol)  
             self.display_message(f"Fetching images for sol year {new_sol}...")  # Display message in console
             self.fetch_and_display_images()
+
+    def fetch_rover_names(self):
+            url = "https://api.nasa.gov/mars-photos/api/v1/rovers/?api_key=DEMO_KEY"
+            try:
+                response = requests.get(url)
+                if response.status_code == 200:
+                    data = response.json()
+                    self.rovers = [rover['name'].lower() for rover in data['rovers']]
+                else:
+                    self.rovers = ['curiosity', 'opportunity', 'spirit']  # Default rover names
+            except Exception as e:
+                print("An error occurred while fetching rover names:", str(e))
+                self.rovers = ['curiosity', 'opportunity', 'spirit']  # Default rover names
+
+    def browse_download_path(self):
+        download_path = filedialog.askdirectory()
+        if download_path:
+            self.download_path_entry.delete(0, tk.END)
+            self.download_path_entry.insert(0, download_path)
+
+    def download_image(self):
+        if hasattr(self, 'current_image_data'):
+            rover_name = self.photos[self.current_index]['rover']['name']
+            earth_date = self.photos[self.current_index]['earth_date']
+            image_number = self.current_index + 1  # Image number
+            file_name = f"{rover_name}_{earth_date}_Image{image_number}.jpg"
+
+            download_path = self.download_path_entry.get()
+            if not download_path:
+                file_path = filedialog.asksaveasfilename(defaultextension=".jpg",
+                                                        filetypes=[("JPEG files", "*.jpg"), ("All files", "*.*")],
+                                                        initialfile=file_name)
+            else:
+                file_path = os.path.join(download_path, file_name)
+
+            if file_path:
+                with open(file_path, 'wb') as f:
+                    f.write(self.current_image_data)
+                self.display_message("Image downloaded successfully.")
+        else:
+            self.display_message("No image to download.")
 
 
 

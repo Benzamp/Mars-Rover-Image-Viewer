@@ -1,3 +1,4 @@
 // this file will populate with your API key. Dont add anything here. 
 // set and save your API key in the 'Settings' tab.
 PmZ3x0bbT0CStBjN7dZegW3XfUypxL6TQ499XmcT
+G:/Rover Images/testing download path

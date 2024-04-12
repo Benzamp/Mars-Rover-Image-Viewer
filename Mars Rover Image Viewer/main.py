@@ -31,9 +31,7 @@ class MarsRoverImageViewer:
         # Set background color for all widgets
         self.custom_style.configure('.', background=self.dark_gray)
 
-
         # Create widgets
-
         self.tabControl = ttk.Notebook(master)
         self.tabControl.pack(expand=1, fill="both")
 
@@ -61,6 +59,9 @@ class MarsRoverImageViewer:
         self.download_button = tk.Button(self.button_frame_top, text='Download Image', command=self.download_image, width=20, bg='#333', fg='white')  # Set button colors
         self.download_button.pack(side='left', padx=(10, 5))
 
+        self.fetch_recent_button = tk.Button(self.button_frame_top, text='Fetch Recent Images', command=self.fetch_recent_images, width=20, bg='#333', fg='white')  # Set button colors
+        self.fetch_recent_button.pack(side='left', padx=(5, 10))
+
         self.button_frame_bottom = tk.Frame(self.tab1, bg=self.dark_gray)
         self.button_frame_bottom.pack(pady=10)
 
@@ -76,7 +77,6 @@ class MarsRoverImageViewer:
         self.date_frame = tk.Frame(self.tab1, bg=self.dark_gray)
         self.date_frame.pack(pady=5)
 
-        # Add buttons for advancing and retracting the sol
         self.retract_sol_button = tk.Button(self.date_frame, text='◀ -1 sol', command=self.decrease_sol, width=10, bg='#333', fg='white')
         self.retract_sol_button.pack(side='left', padx=(10, 5))
 
@@ -114,17 +114,46 @@ class MarsRoverImageViewer:
         self.settings_frame = tk.Frame(self.tab2, bg=self.dark_gray)
         self.settings_frame.pack(pady=10)
 
-        self.api_key_label = tk.Label(self.settings_frame, text='Enter API Key:', bg=self.dark_gray, fg='white')  # Set label colors
+        # Frame for the first line of widgets
+        self.api_key_frame = tk.Frame(self.settings_frame, bg=self.dark_gray)
+        self.api_key_frame.pack(pady=5)
+
+        # API key label
+        self.api_key_label = tk.Label(self.api_key_frame, text='Enter API Key:', bg=self.dark_gray, fg='white')
         self.api_key_label.pack(side='left')
 
-        self.api_key_entry = tk.Entry(self.settings_frame, bg='#333', fg='white')  # Set entry colors
+        # API key entry
+        self.api_key_entry = tk.Entry(self.api_key_frame, bg='#333', fg='white')
         self.api_key_entry.pack(side='left')
         self.api_key = self.load_api_key()  # Load API key from file
-        #print("Loaded API key:", self.api_key)  # Check if API key is loaded
         self.api_key_entry.insert(0, self.api_key)  # Auto-populate API key entry
 
-        self.save_api_key_button = tk.Button(self.settings_frame, text='Save API Key', command=self.save_api_key, bg='#333', fg='white')  # Set button colors
+        # Save API key button
+        self.save_api_key_button = tk.Button(self.api_key_frame, text='Save API Key', command=self.save_api_key, bg='#333', fg='white')
         self.save_api_key_button.pack(side='left', padx=10)
+
+        # Frame for the second line of widgets
+        self.path_frame = tk.Frame(self.settings_frame, bg=self.dark_gray)
+        self.path_frame.pack(pady=5)
+
+        # Label for the download path entry
+        self.download_path_label = tk.Label(self.path_frame, text="Download Path:", bg=self.dark_gray, fg='white')
+        self.download_path_label.pack(side='left')
+
+        # Create a download path entry widget
+        self.download_path_entry = tk.Entry(self.path_frame, bg='#333', fg='white')
+        self.download_path_entry.pack(side='left', expand=True, fill='x')
+
+        # Load download path from file
+        self.download_path = self.load_download_path()
+        self.download_path_entry.insert(0, self.download_path)
+
+        # Browse button for selecting download path
+        self.browse_button = tk.Button(self.path_frame, text="Browse", command=self.browse_download_path, bg='#333', fg='white')
+        self.browse_button.pack(side='left', padx=(5, 10))
+
+        self.save_path_button = tk.Button(self.path_frame, text="Save", command=self.save_download_path, bg='#333', fg='white')
+        self.save_path_button.pack(side='left', padx=(5, 10))
 
         self.about_text = scrolledtext.ScrolledText(self.tab3, wrap=tk.WORD, width=60, height=10, bg='#333', fg='white')  # Set text widget colors
         self.about_text.pack(pady=10, padx=10, fill='both', expand=True)
@@ -163,6 +192,12 @@ class MarsRoverImageViewer:
         self.prev_button.config(font=self.custom_font)
         self.next_button.config(font=self.custom_font)
         self.image_counter_label.config(font=self.custom_font)
+        self.download_path_label.config(font=self.custom_font)
+        self.browse_button.config(font=self.custom_font)
+        self.fetch_recent_button.config(font=self.custom_font)
+        self.retract_sol_button.config(font=self.custom_font)
+        self.advance_sol_button.config(font=self.custom_font)
+        self.save_path_button.config(font=self.custom_font)
 
         # Set the background color of button frames
         self.button_frame_top.config(bg=self.dark_gray)
@@ -174,13 +209,6 @@ class MarsRoverImageViewer:
 
         # Set a placeholder image when the app is started
         self.display_current_image_placeholder()
-
-        # Recent images button
-        self.fetch_recent_button = tk.Button(self.button_frame_top, text='Fetch Recent Images', command=self.fetch_recent_images, width=20, bg='#333', fg='white')  # Set button colors
-        self.fetch_recent_button.pack(side='left', padx=(5, 10))
-
-        # Apply button style to fetch recent
-        self.fetch_recent_button.config(font=self.custom_font, bg='#333', fg='white')
 
         self.sol = None
 
@@ -270,19 +298,25 @@ class MarsRoverImageViewer:
 
     def download_image(self):
         if hasattr(self, 'current_image_data'):
+            # Check if download path is set
+            download_path = self.download_path_entry.get()
+            if not download_path:
+                self.display_message("Configure download path in the Settings tab.")
+                return
+
             rover_name = self.photos[self.current_index]['rover']['name']
             earth_date = self.photos[self.current_index]['earth_date']
-            image_number = self.current_index + 1  # Adding 1 to index since image numbers start from 1
+            image_number = self.current_index + 1  # Image number
             file_name = f"{rover_name}_{earth_date}_Image{image_number}.jpg"
-            file_path = filedialog.asksaveasfilename(defaultextension=".jpg",
-                                                    filetypes=[("JPEG files", "*.jpg"), ("All files", "*.*")],
-                                                    initialfile=file_name)
-            if file_path:
-                with open(file_path, 'wb') as f:
-                    f.write(self.current_image_data)
-                self.display_message("Image downloaded successfully.")
+
+            file_path = os.path.join(download_path, file_name)
+
+            with open(file_path, 'wb') as f:
+                f.write(self.current_image_data)
+            self.display_message("Image downloaded successfully.")
         else:
             self.display_message("No image to download.")
+
 
 
     def save_api_key(self):
@@ -313,16 +347,39 @@ class MarsRoverImageViewer:
     def load_api_key(self):
         try:
             with open('api_key.txt', 'r') as f:
-                for line in f:
+                lines = f.readlines()
+                for line in lines:
                     line = line.strip()
-                    if not line.startswith('//'):  # Ignore comment lines
-                        #print("Loaded API key:", line)  # Add this line to print the loaded API key
+                    if not line.startswith('//') and line != '':
+                        # Return the API key extracted from the file
                         return line
-            print("No valid API key found")  # Add this line to indicate no valid API key found
+            # If no valid API key found
+            print("No valid API key found")
             return ''
         except FileNotFoundError:
             print("File not found")  # Add this line to indicate file not found
             return ''
+        
+    def load_download_path(self):
+        try:
+            with open('api_key.txt', 'r') as f:
+                lines = f.readlines()
+                # Iterate through the lines to find the second uncommented line
+                uncommented_count = 0
+                for line in lines:
+                    line = line.strip()
+                    if not line.startswith('//') and line != '':
+                        uncommented_count += 1
+                        if uncommented_count == 2:  # Second uncommented line
+                            # Extract the download path from the line
+                            return line
+            # If no valid download path found
+            print("No valid download path found")
+            return ''
+        except FileNotFoundError:
+            print("File not found")  # Add this line to indicate file not found
+            return ''
+
 
     def save_api_key_to_file(self):
         api_key = self.api_key_entry.get()
@@ -525,7 +582,30 @@ class MarsRoverImageViewer:
         else:
             self.display_message("No image to download.")
 
+    def save_download_path(self):
+        download_path = self.download_path_entry.get()
+        if download_path:
+            try:
+                # Open the api_key.txt file and read its contents
+                with open('api_key.txt', 'r') as f:
+                    lines = f.readlines()
+                
+                # Update the download path in the fourth line
+                if len(lines) >= 4:
+                    lines[3] = f'{download_path}\n'
+                else:
+                    lines.append('\n' * (3 - len(lines)))
+                    lines.append(f'{download_path}\n')
 
+                # Write the updated contents back to the file
+                with open('api_key.txt', 'w') as f:
+                    f.writelines(lines)
+
+                messagebox.showinfo("Success", "Download path saved successfully.")
+            except Exception as e:
+                messagebox.showerror("Error", f"An error occurred: {e}")
+        else:
+            messagebox.showerror("Error", "Download path cannot be empty.")
 
 def main():
     window = tk.Tk()

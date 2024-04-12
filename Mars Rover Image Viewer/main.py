@@ -184,8 +184,12 @@ class MarsRoverImageViewer:
 
         self.sol = None
 
-        # Display initial message
-        initial_message = "Choose a rover and search for images by entering a specific sol date, or simply fetch the most recent images and explore from there."
+        # Check if API key is set and verified
+        if self.check_api_key():
+            initial_message = "Choose a rover and search for images by entering a specific sol date, or simply fetch the most recent images and explore from there."
+        else:
+            initial_message = "You need to add an API key. If you need one, go to the About tab for instructions. If you have one, add it in the Settings tab."
+
         self.display_message(initial_message)
 
     def fetch_recent_images(self):

@@ -674,7 +674,6 @@ class MarsRoverImageViewer:
         else:
             messagebox.showerror("Error", "Download path cannot be empty.")
 
-
 def main():
     window = tk.Tk()
     window.iconphoto(True, tk.PhotoImage(file='Images/rover-icon2.png'))

@@ -1,2 +1,0 @@
-// this file will populate with your API key. Dont add anything here. 
-// set and save your API key in the 'Settings' tab.

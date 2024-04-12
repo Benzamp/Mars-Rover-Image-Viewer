@@ -15,6 +15,8 @@ import os
 import tkinter.font as tkFont
 import re
 from datetime import datetime
+import threading
+import json
 
 class MarsRoverImageViewer:
     def __init__(self, master):
@@ -108,6 +110,10 @@ class MarsRoverImageViewer:
         self.fetch_button = tk.Button(self.date_frame, text='Search', command=self.fetch_and_display_images, width=7, bg='#333', fg='white')  # Set button colors
         self.fetch_button.pack(side='left', padx=(5, 10))
 
+        # Create a button to fetch the saved image
+        #self.fetch_saved_image_button = tk.Button(self.tab1, text='Load Saved Image', command=self.load_saved_image_info, width=40, bg='#333', fg='white')
+        #self.fetch_saved_image_button.pack(pady=10)
+
         self.console = scrolledtext.ScrolledText(self.tab1, wrap=tk.WORD, width=60, height=10, bg='#333', fg='white')  # Set console colors
         self.console.pack(pady=10, padx=10, fill='both', expand=True)
 
@@ -129,7 +135,7 @@ class MarsRoverImageViewer:
         self.api_key_entry.insert(0, self.api_key)  # Auto-populate API key entry
 
         # Save API key button
-        self.save_api_key_button = tk.Button(self.api_key_frame, text='Save API Key', command=self.save_api_key, bg='#333', fg='white')
+        self.save_api_key_button = tk.Button(self.api_key_frame, text='Save API Key', command=self.save_api_key_to_file, bg='#333', fg='white')
         self.save_api_key_button.pack(side='left', padx=10)
 
         # Frame for the second line of widgets
@@ -166,9 +172,6 @@ class MarsRoverImageViewer:
         self.photos = []
         self.image_displayed = False  # Track if an image is currently being displayed
 
-        # Get the full path of the font file
-        font_file = os.path.join(os.path.dirname(__file__), 'fonts/VcrOsd.ttf')
-
         # Register the custom font with Tkinter
         self.custom_font = tkFont.Font(font=tkFont.Font(family='VCR OSD Mono', size=11))
 
@@ -188,6 +191,7 @@ class MarsRoverImageViewer:
         self.date_entry.config(font=self.custom_font)
         self.date_label.config(font=self.custom_font)
         self.fetch_button.config(font=self.custom_font)
+        #self.fetch_saved_image_button.config(font=self.custom_font)
         self.download_button.config(font=self.custom_font)
         self.prev_button.config(font=self.custom_font)
         self.next_button.config(font=self.custom_font)
@@ -212,6 +216,24 @@ class MarsRoverImageViewer:
 
         self.sol = None
 
+    def display_image(self, img_data):
+        # Display the image
+        with Image.open(BytesIO(img_data)) as img:
+            img = img.resize((400, 400))
+            img = ImageTk.PhotoImage(img)
+            self.image_label.config(image=img)
+            self.image_label.image = img
+
+    def fetch_image(self, img_url):
+        try:
+            # Fetch the image data
+            img_response = requests.get(img_url)
+            img_response.raise_for_status()  # Raise an exception for non-200 responses
+            img_data = img_response.content
+            self.display_image(img_data)
+        except requests.exceptions.RequestException as e:
+            self.display_message(f'Failed to fetch image: {e}')
+
     def display_current_image(self):
         # Show a placeholder image initially
         placeholder_image = Image.new("RGB", (400, 400), color=self.dark_gray)
@@ -219,30 +241,19 @@ class MarsRoverImageViewer:
         self.image_label.config(image=placeholder_image)
         self.image_label.image = placeholder_image
 
-        # Fetch and display the actual image
+        # Fetch and display the actual image asynchronously
         photo = self.photos[self.current_index]
         img_url = photo['img_src']
-        img_response = requests.get(img_url)
-        if img_response.status_code == 200:
-            img_data = img_response.content
-            img = Image.open(BytesIO(img_data))
-            img = img.resize((400, 400))
-            img = ImageTk.PhotoImage(img)
-            self.image_label.config(image=img)
-            self.image_label.image = img
+        threading.Thread(target=self.fetch_image, args=(img_url,)).start()
 
-            rover_name = photo['rover']['name']
-            earth_date = photo['earth_date']
-            sol = photo['sol']  # Martian date (sol)
-            status = photo['rover']['status']
-            self.details_label.config(text=f'Rover: {rover_name}\nEarth Date: {earth_date}\nMartian Date (sol): {sol}\nStatus: {status}')
-            self.current_image_data = img_data  # Save image data for download
+        rover_name = photo['rover']['name']
+        earth_date = photo['earth_date']
+        sol = photo['sol']  # Martian date (sol)
+        status = photo['rover']['status']
+        self.details_label.config(text=f'Rover: {rover_name}\nEarth Date: {earth_date}\nMartian Date (sol): {sol}\nStatus: {status}')
 
-            # Update image counter
-            self.image_counter_label.config(text=f'{self.current_index + 1}/{len(self.photos)}')
-        else:
-            self.display_message('Failed to fetch image:', img_response.status_code)
-
+        # Update image counter
+        self.image_counter_label.config(text=f'{self.current_index + 1}/{len(self.photos)}')
 
     def show_previous_image(self):
         if self.current_index > 0:
@@ -255,162 +266,114 @@ class MarsRoverImageViewer:
             self.display_current_image()
 
     def download_image(self):
-        if hasattr(self, 'current_image_data'):
-            # Check if download path is set
-            download_path = self.download_path_entry.get()
-            if not download_path:
-                self.display_message("Configure download path in the Settings tab.")
-                return
+        # Check if download path is set
+        download_path = self.download_path_entry.get()
+        if not download_path:
+            self.display_message("Configure download path in the Settings tab.")
+            return
 
-            rover_name = self.photos[self.current_index]['rover']['name']
-            earth_date = self.photos[self.current_index]['earth_date']
-            image_number = self.current_index + 1  # Image number
-            file_name = f"{rover_name}_{earth_date}_Image{image_number}.jpg"
+        rover_name = self.photos[self.current_index]['rover']['name']
+        earth_date = self.photos[self.current_index]['earth_date']
+        image_number = self.current_index + 1  # Image number
+        file_name = f"{rover_name}_{earth_date}_Image{image_number}.jpg"
+        img_url = self.photos[self.current_index]['img_src']
 
-            file_path = os.path.join(download_path, file_name)
+        file_path = os.path.join(download_path, file_name)
 
-            with open(file_path, 'wb') as f:
-                f.write(self.current_image_data)
-            self.display_message("Image downloaded successfully.")
-        else:
-            self.display_message("No image to download.")
-
-
-
-    def save_api_key(self):
-        self.api_key = self.api_key_entry.get()
-        if self.check_api_key():
-            messagebox.showinfo("Success", "API Key saved successfully and validated.")
-            self.save_api_key_to_file()  # Save API key to file
-        else:
-            messagebox.showerror("Error", "Invalid API Key.")
-
-    def check_api_key(self):
-        url = f'https://api.nasa.gov/mars-photos/api/v1/rovers/curiosity/photos?sol=1000&api_key={self.api_key}'
         try:
-            response = requests.get(url)
-            return response.status_code == 200
-        except:
-            return False
+            response = requests.get(img_url)
+            if response.status_code == 200:
+                with open(file_path, 'wb') as f:
+                    f.write(response.content)
+                self.display_message("Image downloaded successfully.")
+            else:
+                self.display_message(f"Failed to download image. Status code: {response.status_code}")
+        except Exception as e:
+            self.display_message(f"Error downloading image: {e}")
+
+        def check_api_key(self):
+            url = f'https://api.nasa.gov/mars-photos/api/v1/rovers/curiosity/photos?sol=1000&api_key={self.api_key}'
+            try:
+                response = requests.get(url)
+                return response.status_code == 200
+            except:
+                return False
 
     def display_message(self, message):
         # Insert the new message
         self.console.insert(tk.END, f'{message}\n')
         self.console.see(tk.END)
 
-
     def load_api_key(self):
         try:
-            with open('api_key.txt', 'r') as f:
-                lines = f.readlines()
-                for line in lines:
-                    line = line.strip()
-                    if not line.startswith('//') and line != '':
-                        # Return the API key extracted from the file
-                        return line
-            # If no valid API key found
-            print("No valid API key found")
-            return ''
+            with open('settings.json', 'r') as f:
+                settings = json.load(f)
+                return settings.get("apiKey", "")
         except FileNotFoundError:
-            print("File not found")  # Add this line to indicate file not found
+            print("File not found")
             return ''
         
     def load_download_path(self):
         try:
-            with open('api_key.txt', 'r') as f:
-                lines = f.readlines()
-                # Iterate through the lines to find the second uncommented line
-                uncommented_count = 0
-                for line in lines:
-                    line = line.strip()
-                    if not line.startswith('//') and line != '':
-                        uncommented_count += 1
-                        if uncommented_count == 2:  # Second uncommented line
-                            # Extract the download path from the line
-                            return line
-            # If no valid download path found
-            print("No valid download path found")
-            return ''
+            with open('settings.json', 'r') as f:
+                settings = json.load(f)
+                return settings.get("downloadPath", "")
         except FileNotFoundError:
-            print("File not found")  # Add this line to indicate file not found
+            print("File not found")
             return ''
-
 
     def save_api_key_to_file(self):
         api_key = self.api_key_entry.get()
         try:
-            with open('api_key.txt', 'r') as f:
-                lines = f.readlines()
+            with open('settings.json', 'r') as f:
+                settings = json.load(f)
         except FileNotFoundError:
-            lines = []
+            settings = {}
 
-        if len(lines) >= 3:
-            lines[2] = f'{api_key}\n'  # Save the API key directly without any prefix
-        else:
-            lines.append('\n' * (2 - len(lines)))  # Make sure there are at least 3 lines
-            lines.append(f'{api_key}\n')
+        settings["apiKey"] = api_key
 
-        with open('api_key.txt', 'w') as f:
-            f.writelines(lines)
+        with open('settings.json', 'w') as f:
+            json.dump(settings, f, indent=4)
 
     def save_image_info_to_file(self, rover_name, sol_date, image_number):
-        info_line = f'{rover_name},{sol_date},{image_number}'
-
-        # Add date and time when the info was saved
-        current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        info_line += f',{current_datetime}\n'
+        info = {
+            "rover_name": rover_name,
+            "sol_date": sol_date,
+            "image_number": image_number,
+            "saved_datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
 
         try:
-            with open('api_key.txt', 'r') as f:
-                lines = f.readlines()
+            with open('settings.json', 'r') as f:
+                settings = json.load(f)
         except FileNotFoundError:
-            lines = []
+            settings = {}
 
-        if len(lines) >= 5:
-            lines[4] = info_line  # Save the info directly without any prefix
-        else:
-            lines.append('\n' * (4 - len(lines)))  # Make sure there are at least 5 lines
-            lines.append(info_line)
+        settings["saveLocation"] = info
 
-        with open('api_key.txt', 'w') as f:
-            f.writelines(lines)
-
-    from datetime import datetime
+        with open('settings.json', 'w') as f:
+            json.dump(settings, f, indent=4)
 
     def load_saved_image_info(self):
         try:
-            with open('api_key.txt', 'r+') as f:  # Open the file in read/write mode
-                lines = f.readlines()
-                if len(lines) >= 5:
-                    image_info = lines[4].strip().split(',')
-                    if len(image_info) == 4:  # Check if there are four elements in the line
-                        rover_name, sol_year, image_number, saved_datetime = image_info
-                        self.selected_rover.set(rover_name)
-                        self.selected_date.set(sol_year)
-                        self.current_index = int(image_number) - 1
+            with open('settings.json', 'r') as f:
+                settings = json.load(f)
+                save_location = settings.get("saveLocation")
+                if save_location:
+                    rover_name = save_location.get("rover_name")
+                    sol_date = save_location.get("sol_date")
+                    image_number = save_location.get("image_number")
+                    saved_datetime = save_location.get("saved_datetime")
 
-                        # Clear the console
-                        self.console.delete('1.0', tk.END)
-                        
-                        self.fetch_and_display_images()
-                        
-                        # Format the saved datetime
-                        saved_datetime = datetime.strptime(saved_datetime, "%Y-%m-%d %H:%M:%S")
-                        formatted_datetime = saved_datetime.strftime("%A, %B %dth at %H:%M")
-                        
-                        # Display the message in the Viewer's scrollable text
-                        self.display_message(f"Putting you back where you were on {formatted_datetime}")
-
-                        # Delete the 5th line in the file
-                        del lines[4]
-                        f.seek(0)  # Move the file pointer to the beginning
-                        f.writelines(lines)  # Write the modified lines back to the file
-                        f.truncate()  # Truncate the remaining content (if any)
+                    # Display the message in the Viewer's scrollable text
+                    message = f"From {saved_datetime}: {rover_name} Sol:{sol_date} #{image_number}"
+                    self.display_message(message)
+                else:
+                    self.display_message("No saved image info found.")
         except FileNotFoundError:
-            print("File not found")  # Handle file not found error
+            self.display_message("File not found")
         except Exception as e:
-            print("An error occurred while loading saved image info:", str(e))  # Handle other exceptions
-
+            self.display_message("An error occurred while loading saved image info: " + str(e))
 
 
     def load_readme(self):
@@ -443,9 +406,10 @@ class MarsRoverImageViewer:
 
     def saved_image_data_exists(self):
         try:
-            with open('api_key.txt', 'r') as f:
-                lines = f.readlines()
-                if len(lines) >= 5:
+            with open('settings.json', 'r') as f:
+                settings = json.load(f)
+                save_location = settings.get("saveLocation")
+                if save_location:
                     return True
                 else:
                     return False
@@ -453,23 +417,34 @@ class MarsRoverImageViewer:
             return False
 
     def display_current_image_placeholder(self):
-        if self.saved_image_data_exists():
-            # Load saved image info
-            self.load_saved_image_info()
-        else:
-            # Create a placeholder image
-            placeholder_image = Image.new("RGB", (400, 400), color=self.dark_gray)
-            placeholder_image = ImageTk.PhotoImage(placeholder_image)
-            self.image_label.config(image=placeholder_image)
-            self.image_label.image = placeholder_image
-            # Check if API key is set and verified
-            if self.check_api_key():
-                initial_message = "Choose a rover and search for images by entering a specific sol date, or simply fetch the most recent images and explore from there."
-            else:
-                initial_message = "You need to add an API key. If you need one, go to the About tab for instructions. If you have one, add it in the Settings tab."
+        # Create a placeholder image
+        placeholder_image = Image.new("RGB", (400, 400), color=self.dark_gray)
+        placeholder_image = ImageTk.PhotoImage(placeholder_image)
+        self.image_label.config(image=placeholder_image)
+        self.image_label.image = placeholder_image
 
+        # Check if there is saved information in saveLocation
+        try:
+            with open('settings.json', 'r') as f:
+                settings = json.load(f)
+                save_location = settings.get("saveLocation")
+                if save_location:
+                    # Format the message with the saved information
+                    rover_name = save_location.get("rover_name")
+                    sol_date = save_location.get("sol_date")
+                    image_number = save_location.get("image_number")
+                    saved_datetime = save_location.get("saved_datetime")
+                    message = f"Saved image info:\nRover: {rover_name}\nSol Date: {sol_date}\nImage Number: {image_number}\nSaved DateTime: {saved_datetime}"
+                    self.display_message(message)
+                else:
+                    initial_message = "Choose a rover and search for images by entering a specific sol date, or simply fetch the most recent images and explore from there."
+                    self.display_message(initial_message)
+        except FileNotFoundError:
+            initial_message = "Choose a rover and search for images by entering a specific sol date, or simply fetch the most recent images and explore from there."
             self.display_message(initial_message)
-
+        except Exception as e:
+            initial_message = "An error occurred while loading saved image info: " + str(e)
+            self.display_message(initial_message)
 
     def fetch_and_display_images(self):
         # Clear the console
@@ -531,6 +506,68 @@ class MarsRoverImageViewer:
         if self.photos:
             self.current_index = 0
             self.display_current_image()
+
+    def fetch_and_display_images(self):
+        # Clear the console
+        self.console.delete('1.0', tk.END)
+
+        rover_name = self.selected_rover.get()
+        sol = self.selected_date.get()
+        if not sol.isdigit():
+            self.display_message('Please enter a valid sol number.')
+            return
+
+        rovers = [rover_name.lower()]
+
+        self.photos = []
+
+        for rover in rovers:
+            url = f'https://api.nasa.gov/mars-photos/api/v1/rovers/{rover}/photos?sol={sol}&api_key={self.api_key}'
+
+            try:
+                response = requests.get(url)
+                if response.status_code == 200:
+                    data = response.json()
+                    fetched_photos = data.get('photos', [])
+                    if fetched_photos:
+                        self.photos.extend(fetched_photos)
+                        self.display_message(f"{len(fetched_photos)} images were found for the rover {rover_name} in sol year {sol}")
+                    else:
+                        # Clear the console
+                        self.console.delete('1.0', tk.END)
+                        # Update image counter label when no photos are available
+                        self.image_counter_label.config(text='0/0')
+                        # Revert to placeholder image and nullify image facts
+                        self.display_current_image_placeholder()
+                        # Set the message in the Viewer's scrollable text
+                        self.display_message(f'No images found for {rover_name} on sol {sol}')
+                        return  # Exit the method since there are no photos
+                else:
+                    # Clear the console
+                    self.console.delete('1.0', tk.END)
+
+                    # Update image counter label when fetching photos fails
+                    self.image_counter_label.config(text='0/0')
+                    # Revert to placeholder image and nullify image facts
+                    self.display_current_image_placeholder()
+                    # Set the message in the Viewer's scrollable text
+                    self.display_message(f'Failed to fetch images for {rover_name} on sol {sol}')
+                    return  # Exit the method since there are no photos
+            except Exception as e:
+                # Clear the console
+                self.console.delete('1.0', tk.END)
+                # Update image counter label when an error occurs
+                self.image_counter_label.config(text='0/0')
+                # Revert to placeholder image and nullify image facts
+                self.display_current_image_placeholder()
+                # Set the message in the Viewer's scrollable text
+                self.display_message(f'Error fetching images for {rover_name} on sol {sol}')
+                return  # Exit the method since there are no photos
+
+        if self.photos:
+            self.current_index = 0
+            self.display_current_image()
+
 
     def fetch_recent_images(self):
         # Clear the console
@@ -614,46 +651,22 @@ class MarsRoverImageViewer:
             self.download_path_entry.delete(0, tk.END)
             self.download_path_entry.insert(0, download_path)
 
-    def download_image(self):
-        if hasattr(self, 'current_image_data'):
-            rover_name = self.photos[self.current_index]['rover']['name']
-            earth_date = self.photos[self.current_index]['earth_date']
-            image_number = self.current_index + 1  # Image number
-            file_name = f"{rover_name}_{earth_date}_Image{image_number}.jpg"
-
-            download_path = self.download_path_entry.get()
-            if not download_path:
-                file_path = filedialog.asksaveasfilename(defaultextension=".jpg",
-                                                        filetypes=[("JPEG files", "*.jpg"), ("All files", "*.*")],
-                                                        initialfile=file_name)
-            else:
-                file_path = os.path.join(download_path, file_name)
-
-            if file_path:
-                with open(file_path, 'wb') as f:
-                    f.write(self.current_image_data)
-                self.display_message("Image downloaded successfully.")
-        else:
-            self.display_message("No image to download.")
+    
 
     def save_download_path(self):
         download_path = self.download_path_entry.get()
         if download_path:
             try:
-                # Open the api_key.txt file and read its contents
-                with open('api_key.txt', 'r') as f:
-                    lines = f.readlines()
-                
-                # Update the download path in the fourth line
-                if len(lines) >= 4:
-                    lines[3] = f'{download_path}\n'
-                else:
-                    lines.append('\n' * (3 - len(lines)))
-                    lines.append(f'{download_path}\n')
+                # Open the settings.json file and load its contents
+                with open('settings.json', 'r') as f:
+                    settings = json.load(f)
+
+                # Update the download path in the settings
+                settings['downloadPath'] = download_path
 
                 # Write the updated contents back to the file
-                with open('api_key.txt', 'w') as f:
-                    f.writelines(lines)
+                with open('settings.json', 'w') as f:
+                    json.dump(settings, f, indent=4)
 
                 messagebox.showinfo("Success", "Download path saved successfully.")
             except Exception as e:

@@ -1,8 +1,6 @@
 Created by Ben Harrison using Python and NASA Mars Rover Photos API.
 
-![image](https://github.com/Benzamp/Mars-Rover-Image-Viewer/assets/39504919/7d51149c-5d3a-4e8c-a0d5-1e4d40f58ef3)
-
-
+![image](https://github.com/Benzamp/Mars-Rover-Image-Viewer/assets/39504919/2cf3674a-99d5-429b-a10c-338e6d04d024)
 
 Go to https://api.nasa.gov/ to browse API's and get an API key. Copy and paste this key
 in the Settings tab. This key will be saved in the api-key.txt file, so

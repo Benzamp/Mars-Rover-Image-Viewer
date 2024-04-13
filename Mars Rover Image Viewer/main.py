@@ -33,6 +33,10 @@ class MarsRoverImageViewer:
         # Set background color for all widgets
         self.custom_style.configure('.', background=self.dark_gray)
 
+        self.current_index = 0
+        self.photos = []
+        self.image_displayed = False  # Track if an image is currently being displayed
+
         # Create widgets
         self.tabControl = ttk.Notebook(master)
         self.tabControl.pack(expand=1, fill="both")
@@ -67,23 +71,53 @@ class MarsRoverImageViewer:
         self.button_frame_bottom = tk.Frame(self.tab1, bg=self.dark_gray)
         self.button_frame_bottom.pack(pady=10)
 
+        self.image_button_group_label = tk.Label(self.button_frame_bottom, text='Images', bg=self.dark_gray, fg='white')
+        self.image_button_group_label.pack(side='top', pady=(0, 5))
+
+        self.prev_5_button = tk.Button(self.button_frame_bottom, text='◀ Prev 5', command=self.show_previous_5_images, width=10, bg='#333', fg='white')  # Set button colors
+        self.prev_5_button.pack(side='left', padx=(10, 5))
+
         self.prev_button = tk.Button(self.button_frame_bottom, text='◀ Previous', command=self.show_previous_image, width=10, bg='#333', fg='white')  # Set button colors
-        self.prev_button.pack(side='left', padx=(10, 5))
+        self.prev_button.pack(side='left')
 
         self.image_counter_label = tk.Label(self.button_frame_bottom, text='', bg=self.dark_gray, fg='white')
         self.image_counter_label.pack(side='left', padx=(5, 10))
 
+        self.next_5_button = tk.Button(self.button_frame_bottom, text='Next 5 ▶', command=self.show_next_5_images, width=10, bg='#333', fg='white')  # Set button colors
+        self.next_5_button.pack(side='right', padx=(5, 10))
+
         self.next_button = tk.Button(self.button_frame_bottom, text='Next ▶', command=self.show_next_image, width=10, bg='#333', fg='white')  # Set button colors
-        self.next_button.pack(side='right', padx=(5, 10))
+        self.next_button.pack(side='right')
 
         self.date_frame = tk.Frame(self.tab1, bg=self.dark_gray)
         self.date_frame.pack(pady=5)
 
-        self.retract_sol_button = tk.Button(self.date_frame, text='◀ -1 sol', command=self.decrease_sol, width=10, bg='#333', fg='white')
-        self.retract_sol_button.pack(side='left', padx=(10, 5))
+        self.sol_label = tk.Label(self.date_frame, text='Sol', bg=self.dark_gray, fg='white')
+        self.sol_label.pack(side='top', pady=(0, 5))
 
-        self.advance_sol_button = tk.Button(self.date_frame, text='+1 sol ▶', command=self.increase_sol, width=10, bg='#333', fg='white')
-        self.advance_sol_button.pack(side='right', padx=(5, 10))
+        self.retract_100_sol_button = tk.Button(self.date_frame, text='-100', command=self.decrease_sol_by_100, width=5, bg='#333', fg='white')
+        self.retract_100_sol_button.pack(side='left', pady=(5, 5), padx=(5, 5))
+
+        self.retract_50_sol_button = tk.Button(self.date_frame, text='-50', command=self.decrease_sol_by_50, width=5, bg='#333', fg='white')
+        self.retract_50_sol_button.pack(side='left', pady=(5, 5), padx=(5, 5))
+
+        self.retract_10_sol_button = tk.Button(self.date_frame, text='-10', command=self.decrease_sol_by_10, width=5, bg='#333', fg='white')
+        self.retract_10_sol_button.pack(side='left', pady=(5, 5), padx=(5, 5))
+
+        self.retract_sol_button = tk.Button(self.date_frame, text='-1', command=self.decrease_sol, width=5, bg='#333', fg='white')
+        self.retract_sol_button.pack(side='left', pady=(5, 5), padx=(5, 5))
+
+        self.advance_100_sol_button = tk.Button(self.date_frame, text='+100', command=self.increase_sol_by_100, width=5, bg='#333', fg='white')
+        self.advance_100_sol_button.pack(side='right', pady=(5, 5), padx=(5, 5))
+
+        self.advance_50_sol_button = tk.Button(self.date_frame, text='+50', command=self.increase_sol_by_50, width=5, bg='#333', fg='white')
+        self.advance_50_sol_button.pack(side='right', pady=(5, 5), padx=(5, 5))
+
+        self.advance_10_sol_button = tk.Button(self.date_frame, text='+10', command=self.increase_sol_by_10, width=5, bg='#333', fg='white')
+        self.advance_10_sol_button.pack(side='right', pady=(5, 5), padx=(5, 5))
+
+        self.advance_sol_button = tk.Button(self.date_frame, text='+1', command=self.increase_sol, width=5, bg='#333', fg='white')
+        self.advance_sol_button.pack(side='right', pady=(5, 5), padx=(5, 5))
 
         self.rover_frame = tk.Frame(self.tab1, bg=self.dark_gray)
         self.rover_frame.pack(pady=5)
@@ -112,7 +146,10 @@ class MarsRoverImageViewer:
 
         # Create a button to fetch the saved image
         #self.fetch_saved_image_button = tk.Button(self.tab1, text='Load Saved Image', command=self.load_saved_image_info, width=40, bg='#333', fg='white')
-        #self.fetch_saved_image_button.pack(pady=10)
+        #self.fetch_saved_image_button.pack(pady=10) 
+
+        #self.image_index_entry = tk.Entry(self.button_frame_bottom, bg=self.dark_gray, fg='white', width=4)
+        #self.image_index_entry.pack(side='bottom', padx=(5, 10))
 
         self.console = scrolledtext.ScrolledText(self.tab1, wrap=tk.WORD, width=60, height=10, bg='#333', fg='white')  # Set console colors
         self.console.pack(pady=10, padx=10, fill='both', expand=True)
@@ -168,10 +205,6 @@ class MarsRoverImageViewer:
         self.about_label = tk.Label(self.tab3, text=f"Made by Ben Harrison\nGithub: https://github.com/Benzamp\nVersion: {self.version}", bg=self.dark_gray, fg='white')  # Set label colors
         self.about_label.pack(side='bottom', pady=(0, 10), padx=10, anchor='center')
 
-        self.current_index = 0
-        self.photos = []
-        self.image_displayed = False  # Track if an image is currently being displayed
-
         # Register the custom font with Tkinter
         self.custom_font = tkFont.Font(font=tkFont.Font(family='VCR OSD Mono', size=11))
 
@@ -202,17 +235,30 @@ class MarsRoverImageViewer:
         self.retract_sol_button.config(font=self.custom_font)
         self.advance_sol_button.config(font=self.custom_font)
         self.save_path_button.config(font=self.custom_font)
-
+        self.next_5_button.config(font=self.custom_font)
+        self.prev_5_button.config(font=self.custom_font)
         # Set the background color of button frames
         self.button_frame_top.config(bg=self.dark_gray)
         self.button_frame_bottom.config(bg=self.dark_gray)
+        self.retract_sol_button.config(font=self.custom_font)
+        self.advance_sol_button.config(font=self.custom_font)
+        self.retract_sol_button.config(font=self.custom_font)
+        self.retract_100_sol_button.config(font=self.custom_font)
+        self.retract_50_sol_button.config(font=self.custom_font)
+        self.retract_10_sol_button.config(font=self.custom_font)
+        self.advance_sol_button.config(font=self.custom_font)
+        self.advance_10_sol_button.config(font=self.custom_font)
+        self.advance_50_sol_button.config(font=self.custom_font)
+        self.advance_100_sol_button.config(font=self.custom_font)
+        self.sol_label.config(font=self.custom_font)
+        self.image_button_group_label.config(font=self.custom_font)
 
         # Set minimum height and width of the window
-        self.master.minsize(625, 850)
-        self.master.maxsize(625, 850)
+        self.master.minsize(625, 900)
+        self.master.maxsize(625, 900)
 
-        # Set a placeholder image when the app is started
-        self.display_current_image_placeholder()
+        # Set a placeholder image or saved image when the app is started
+        self.display_current_image_placeholder_startup()
 
         self.sol = None
 
@@ -234,36 +280,34 @@ class MarsRoverImageViewer:
         except requests.exceptions.RequestException as e:
             self.display_message(f'Failed to fetch image: {e}')
 
-    def display_current_image(self):
-        # Show a placeholder image initially
-        placeholder_image = Image.new("RGB", (400, 400), color=self.dark_gray)
-        placeholder_image = ImageTk.PhotoImage(placeholder_image)
-        self.image_label.config(image=placeholder_image)
-        self.image_label.image = placeholder_image
-
-        # Fetch and display the actual image asynchronously
-        photo = self.photos[self.current_index]
-        img_url = photo['img_src']
-        threading.Thread(target=self.fetch_image, args=(img_url,)).start()
-
-        rover_name = photo['rover']['name']
-        earth_date = photo['earth_date']
-        sol = photo['sol']  # Martian date (sol)
-        status = photo['rover']['status']
-        self.details_label.config(text=f'Rover: {rover_name}\nEarth Date: {earth_date}\nMartian Date (sol): {sol}\nStatus: {status}')
-
-        # Update image counter
-        self.image_counter_label.config(text=f'{self.current_index + 1}/{len(self.photos)}')
-
     def show_previous_image(self):
         if self.current_index > 0:
             self.current_index -= 1
             self.display_current_image()
+        else:
+            self.display_message(f"No more images to show for {self.selected_rover.get()} at sol {self.sol}")
+
+    def show_previous_5_images(self):
+        if self.current_index > 0:
+            self.current_index = max(0, self.current_index - 5)
+            self.display_current_image()
+        else:
+            self.display_message(f"No more images to show for {self.selected_rover.get()} at sol {self.sol}")
 
     def show_next_image(self):
         if self.current_index < len(self.photos) - 1:
             self.current_index += 1
             self.display_current_image()
+        else:
+            self.display_message(f"No more images to show for {self.selected_rover.get()} at sol {self.sol}")
+
+    def show_next_5_images(self):
+        if self.current_index < len(self.photos) - 1:
+            self.current_index = min(len(self.photos) - 1, self.current_index + 5)
+            self.display_current_image()
+        else:
+            self.display_message(f"No more images to show for {self.selected_rover.get()} at sol {self.sol}")
+
 
     def download_image(self):
         # Check if download path is set
@@ -291,13 +335,13 @@ class MarsRoverImageViewer:
         except Exception as e:
             self.display_message(f"Error downloading image: {e}")
 
-        def check_api_key(self):
-            url = f'https://api.nasa.gov/mars-photos/api/v1/rovers/curiosity/photos?sol=1000&api_key={self.api_key}'
-            try:
-                response = requests.get(url)
-                return response.status_code == 200
-            except:
-                return False
+    def check_api_key(self):
+        url = f'https://api.nasa.gov/mars-photos/api/v1/rovers/curiosity/photos?sol=1000&api_key={self.api_key}'
+        try:
+            response = requests.get(url)
+            return response.status_code == 200
+        except:
+            return False
 
     def display_message(self, message):
         # Insert the new message
@@ -354,28 +398,6 @@ class MarsRoverImageViewer:
         with open('settings.json', 'w') as f:
             json.dump(settings, f, indent=4)
 
-    def load_saved_image_info(self):
-        try:
-            with open('settings.json', 'r') as f:
-                settings = json.load(f)
-                save_location = settings.get("saveLocation")
-                if save_location:
-                    rover_name = save_location.get("rover_name")
-                    sol_date = save_location.get("sol_date")
-                    image_number = save_location.get("image_number")
-                    saved_datetime = save_location.get("saved_datetime")
-
-                    # Display the message in the Viewer's scrollable text
-                    message = f"From {saved_datetime}: {rover_name} Sol:{sol_date} #{image_number}"
-                    self.display_message(message)
-                else:
-                    self.display_message("No saved image info found.")
-        except FileNotFoundError:
-            self.display_message("File not found")
-        except Exception as e:
-            self.display_message("An error occurred while loading saved image info: " + str(e))
-
-
     def load_readme(self):
         try:
             with open('about.md', 'r') as f:
@@ -415,6 +437,21 @@ class MarsRoverImageViewer:
                     return False
         except FileNotFoundError:
             return False
+        
+    def display_current_image(self):
+        # Fetch and display the actual image asynchronously
+        photo = self.photos[self.current_index]
+        img_url = photo['img_src']
+        threading.Thread(target=self.fetch_image, args=(img_url,)).start()
+
+        rover_name = photo['rover']['name']
+        earth_date = photo['earth_date']
+        sol = photo['sol']  # Martian date (sol)
+        status = photo['rover']['status']
+        self.details_label.config(text=f'Rover: {rover_name}\nEarth Date: {earth_date}\nMartian Date (sol): {sol}\nStatus: {status}')
+
+        # Update image counter
+        self.image_counter_label.config(text=f'{self.current_index + 1}/{len(self.photos)}')
 
     def display_current_image_placeholder(self):
         # Create a placeholder image
@@ -446,12 +483,56 @@ class MarsRoverImageViewer:
             initial_message = "An error occurred while loading saved image info: " + str(e)
             self.display_message(initial_message)
 
+    def display_current_image_placeholder_startup(self):
+        # Create a placeholder image
+        placeholder_image = Image.new("RGB", (400, 400), color=self.dark_gray)
+        placeholder_image = ImageTk.PhotoImage(placeholder_image)
+        self.image_label.config(image=placeholder_image)
+        self.image_label.image = placeholder_image
+
+        # Check if there is saved information in saveLocation
+        try:
+            with open('settings.json', 'r') as f:
+                settings = json.load(f)
+                save_location = settings.get("saveLocation")
+                if save_location:
+                    # Format the message with the saved information
+                    rover_name = save_location.get("rover_name")
+                    sol_date = save_location.get("sol_date")
+                    image_number = save_location.get("image_number")
+                    saved_datetime = save_location.get("saved_datetime")
+                    message = f"Saved image info:\nRover: {rover_name}\nSol Date: {sol_date}\nImage Number: {image_number}\nSaved DateTime: {saved_datetime}"
+                    self.display_message(message)
+
+                    # set the sol and date and display a message
+                    self.selected_date.set(str(sol_date))
+                    self.sol = str(sol_date)
+                    self.selected_rover.set(rover_name)
+                
+                    self.display_message(f"Fetching Savepoint...")
+                    self.fetch_button.invoke()
+                    self.current_index = image_number -1 # index starts at 0, image count starts at 1
+                    self.display_current_image()
+                    
+
+                else:
+                    initial_message = "Choose a rover and search for images by entering a specific sol date, or simply fetch the most recent images and explore from there."
+                    self.display_message(initial_message)
+        except FileNotFoundError:
+            initial_message = "Choose a rover and search for images by entering a specific sol date, or simply fetch the most recent images and explore from there."
+            self.display_message(initial_message)
+        except Exception as e:
+            initial_message = "An error occurred while loading saved image info: " + str(e)
+            self.display_message(initial_message)
+
+
     def fetch_and_display_images(self):
         # Clear the console
         self.console.delete('1.0', tk.END)
 
         rover_name = self.selected_rover.get()
         sol = self.selected_date.get()
+
         if not sol.isdigit():
             self.display_message('Please enter a valid sol number.')
             return
@@ -607,17 +688,17 @@ class MarsRoverImageViewer:
         else:
             self.display_message('No recent photos available for the selected rover')
 
+    
     def decrease_sol(self):
         current_sol = self.selected_date.get()
-        if current_sol.isdigit() and int(current_sol) > 0:
+        if current_sol.isdigit() and int(current_sol) > 1:  # Check if sol is greater than 1
             new_sol = int(current_sol) - 1
             self.selected_date.set(str(new_sol))
             self.sol = str(new_sol)
-            # Clear the console
-            self.console.delete('1.0', tk.END)
-
-            self.display_message(f"Fetching images for sol year {new_sol}...")  # Display message in console
+            self.display_message(f"Fetching images for sol year {new_sol}...")
             self.fetch_and_display_images()
+        else:
+            self.display_message("Sol cannot be decreased further.")
 
     def increase_sol(self):
         current_sol = self.selected_date.get()
@@ -625,12 +706,77 @@ class MarsRoverImageViewer:
             new_sol = int(current_sol) + 1
             self.selected_date.set(str(new_sol))
             self.sol = str(new_sol)
-
-            # Clear the console
-            self.console.delete('1.0', tk.END)
-
-            self.display_message(f"Fetching images for sol year {new_sol}...")  # Display message in console
+            self.display_message(f"Fetching images for sol year {new_sol}...")
             self.fetch_and_display_images()
+        else:
+            self.display_message("Invalid sol value.")
+
+    def decrease_sol_by_100(self):
+        current_sol = self.selected_date.get()
+        if current_sol.isdigit() and int(current_sol) >= 100:
+            new_sol = int(current_sol) - 100
+            self.selected_date.set(str(new_sol))
+            self.sol = str(new_sol)
+            self.display_message(f"Fetching images for sol year {new_sol}...")
+            self.fetch_and_display_images()
+        else:
+            self.display_message("Sol cannot be decreased further.")
+
+    def decrease_sol_by_50(self):
+        current_sol = self.selected_date.get()
+        if current_sol.isdigit() and int(current_sol) >= 50:
+            new_sol = int(current_sol) - 50
+            self.selected_date.set(str(new_sol))
+            self.sol = str(new_sol)
+            self.display_message(f"Fetching images for sol year {new_sol}...")
+            self.fetch_and_display_images()
+        else:
+            self.display_message("Sol cannot be decreased further.")
+
+    def decrease_sol_by_10(self):
+        current_sol = self.selected_date.get()
+        if current_sol.isdigit() and int(current_sol) >= 10:
+            new_sol = int(current_sol) - 10
+            self.selected_date.set(str(new_sol))
+            self.sol = str(new_sol)
+            self.display_message(f"Fetching images for sol year {new_sol}...")
+            self.fetch_and_display_images()
+        else:
+            self.display_message("Sol cannot be decreased further.")
+
+    def increase_sol_by_10(self):
+        current_sol = self.selected_date.get()
+        if current_sol.isdigit():
+            new_sol = int(current_sol) + 10
+            self.selected_date.set(str(new_sol))
+            self.sol = str(new_sol)
+            self.display_message(f"Fetching images for sol year {new_sol}...")
+            self.fetch_and_display_images()
+        else:
+            self.display_message("Invalid sol value.")
+
+    def increase_sol_by_50(self):
+        current_sol = self.selected_date.get()
+        if current_sol.isdigit():
+            new_sol = int(current_sol) + 50
+            self.selected_date.set(str(new_sol))
+            self.sol = str(new_sol)
+            self.display_message(f"Fetching images for sol year {new_sol}...")
+            self.fetch_and_display_images()
+        else:
+            self.display_message("Invalid sol value.")
+
+    def increase_sol_by_100(self):
+        current_sol = self.selected_date.get()
+        if current_sol.isdigit():
+            new_sol = int(current_sol) + 100
+            self.selected_date.set(str(new_sol))
+            self.sol = str(new_sol)
+            self.display_message(f"Fetching images for sol year {new_sol}...")
+            self.fetch_and_display_images()
+        else:
+            self.display_message("Invalid sol value.")
+
 
     def fetch_rover_names(self):
             url = "https://api.nasa.gov/mars-photos/api/v1/rovers/?api_key=DEMO_KEY"
